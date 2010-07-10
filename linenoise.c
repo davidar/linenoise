@@ -82,6 +82,7 @@
 
 #define LINENOISE_DEFAULT_HISTORY_MAX_LEN 100
 #define LINENOISE_MAX_LINE 4096
+#define LINENOISE_TAB_WIDTH 4
 static char *unsupported_term[] = {"dumb","cons25",NULL};
 
 static struct termios orig_termios; /* in order to restore at exit */
@@ -184,12 +185,12 @@ static void refreshLine(int fd, const char *prompt, char *buf, size_t len, size_
     /* Cursor to left edge */
     snprintf(seq,64,"\x1b[0G");
     if (write(fd,seq,strlen(seq)) == -1) return;
+    /* Erase line */
+    snprintf(seq,64,"\x1b[2K");
+    if (write(fd,seq,strlen(seq)) == -1) return;
     /* Write the prompt and the current buffer content */
     if (write(fd,prompt,strlen(prompt)) == -1) return;
     if (write(fd,buf,len) == -1) return;
-    /* Erase to right */
-    snprintf(seq,64,"\x1b[0K");
-    if (write(fd,seq,strlen(seq)) == -1) return;
     /* Move cursor to original position. */
     snprintf(seq,64,"\x1b[0G\x1b[%dC", (int)(pos+plen));
     if (write(fd,seq,strlen(seq)) == -1) return;
@@ -294,6 +295,20 @@ up_down_arrow:
                     len = pos = strlen(buf);
                     refreshLine(fd,prompt,buf,len,pos,cols);
                 }
+            }
+            break;
+        case 9:     /* horizontal tab */
+            if (len < buflen) {
+                int i;
+                if (len != pos)
+                    memmove(buf+pos+LINENOISE_TAB_WIDTH,buf+pos,len-pos);
+                for (i = 0; i < LINENOISE_TAB_WIDTH; i++) {
+                    buf[pos] = ' ';
+                    len++;
+                    pos++;
+                }
+                buf[len] = '\0';
+                refreshLine(fd,prompt,buf,len,pos,cols);
             }
             break;
         default:
